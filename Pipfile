@@ -5,8 +5,14 @@ name = "pypi"
 
 [packages]
 requsim = {editable = true, ref = "dev", git = "https://github.com/jwallnoefer/requsim"}
+numpy = "*"
+pandas = "*"
+tools = {editable = true, path = "./tools"}
 
 [dev-packages]
+pre-commit = "*"
+matplotlib = "*"
+pyqt6 = "*"
 
 [requires]
 python_version = "3.9"
