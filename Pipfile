@@ -13,6 +13,7 @@ tools = {editable = true, path = "./tools"}
 pre-commit = "*"
 matplotlib = "*"
 pyqt6 = "*"
+pytest = "*"
 
 [requires]
 python_version = "3.9"
