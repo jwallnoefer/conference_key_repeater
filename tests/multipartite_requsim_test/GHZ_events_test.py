@@ -5,6 +5,8 @@ from requsim.quantum_objects import Station, Pair, MultiQubit
 from requsim.events import EntanglementSwappingEvent
 import requsim.libs.matrix as mat
 
+rho_phiplus = mat.phiplus @ mat.H(mat.phiplus)
+
 
 def n_qubit_ghz_dm(num_qubits):
     z0s = [mat.z0] * num_qubits
@@ -16,9 +18,7 @@ def n_qubit_ghz_dm(num_qubits):
 
 
 def test_produces_ghz_in_ideal():
-    rho_phiplus = mat.phiplus @ mat.H(mat.phiplus)
     for num_parties in range(2, 7):
-        print(num_parties)
         world = World()
         central_station = Station(world=world, position=0)
         stations = [Station(world=world, position=100) for i in range(num_parties)]
@@ -41,4 +41,48 @@ def test_qubit_ordering_does_not_matter():
 
 
 def test_two_pairs_equivalent_to_ent_swap():
-    pass
+    first_state = np.random.random((4, 4))
+    first_state = first_state + mat.H(first_state)
+    first_state = first_state / np.trace(first_state)
+    second_state = np.random.random((4, 4))
+    second_state = second_state + mat.H(second_state)
+    second_state = second_state / np.trace(second_state)
+    world = World()
+    left_station = Station(world=world, position=0)
+    central_station = Station(world=world, position=100)
+    right_station = Station(world=world, position=200)
+    left_pair = Pair(
+        world=world,
+        qubits=[left_station.create_qubit(), central_station.create_qubit()],
+        initial_state=first_state,
+    )
+    right_pair = Pair(
+        world=world,
+        qubits=[central_station.create_qubit(), right_station.create_qubit()],
+        initial_state=second_state,
+    )
+    event = ConnectBellsToGHZEvent(
+        time=0, pairs=[left_pair, right_pair], station=central_station
+    )
+    world.event_queue.add_event(event)
+    return_value = world.event_queue.resolve_next_event()
+    output = return_value["output_state"]
+    output_state = output.state
+    left_pair = Pair(
+        world=world,
+        qubits=[left_station.create_qubit(), central_station.create_qubit()],
+        initial_state=first_state,
+    )
+    right_pair = Pair(
+        world=world,
+        qubits=[central_station.create_qubit(), right_station.create_qubit()],
+        initial_state=second_state,
+    )
+    event = EntanglementSwappingEvent(
+        time=0, pairs=[left_pair, right_pair], station=central_station
+    )
+    world.event_queue.add_event(event)
+    return_value = world.event_queue.resolve_next_event()
+    new_pair = return_value["output_pair"]
+    expected_state = new_pair.state
+    assert np.allclose(output_state, expected_state)

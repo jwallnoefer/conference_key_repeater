@@ -97,10 +97,8 @@ class ConnectBellsToGHZEvent(Event):
                 combining_qubits += [qubit]
             else:
                 leftover_qubits += [qubit]
-        print(combining_indices)
         # do state transformation
         num_pairs = len(self.pairs)
-        print(num_pairs)
         proj_func = _generate_GHZ_proj_function(num_pairs)
         for pair in self.pairs:
             pair.update_time()
