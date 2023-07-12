@@ -134,6 +134,19 @@ class CentralMultipartyProtocol(Protocol):
     #     return
 
     def check(self, message=None):
+        pairs_by_station = []
+        num_pairs_by_station = []
+        num_pairs_scheduled_by_station = []
+        for station in self.stations:
+            pairs = self._get_pairs_between_stations(station, self.central_station)
+            pairs_by_station.append(pairs)
+            num_pairs = len(pairs)
+            num_pairs_by_station.append(num_pairs)
+            num_pairs_scheduled = len(
+                self._get_pairs_scheduled(station, self.central_station)
+            )
+            num_pairs_scheduled_by_station.append(num_pairs_scheduled)
+
         left_pairs = self._get_pairs_between_stations(
             self.stations[0], self.central_station
         )
@@ -255,6 +268,7 @@ def run(distance_from_central, max_iter, params):
         random_num = np.random.geometric(eta_effective)
         return random_num * trial_time
 
+    N = 3
     # setup scenario
     world = World()
 
@@ -267,14 +281,10 @@ def run(distance_from_central, max_iter, params):
     other_stations = [
         Station(
             world,
-            position=np.array([0, -distance_from_central]),
-            memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
-        ),
-        Station(
-            world,
             position=np.array([0, distance_from_central]),
             memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
-        ),
+        )
+        for i in range(N)
     ]
 
     sources = [
@@ -298,7 +308,11 @@ def run(distance_from_central, max_iter, params):
     protocol.setup()
     current_message = None
     while len(protocol.time_list) < max_iter:
+        world.print_status()
+        input()
         protocol.check(current_message)
+        world.print_status()
+        input()
         current_message = world.event_queue.resolve_next_event()
 
     return protocol
