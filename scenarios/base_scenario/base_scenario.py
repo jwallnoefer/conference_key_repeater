@@ -162,17 +162,26 @@ def alpha_of_eta(eta, p_d):
     return eta * (1 - p_d) / (1 - (1 - eta) * (1 - p_d) ** 2)
 
 
-def run(distance_from_central, num_parties, max_iter, params):
-    allowed_params = ["P_LINK", "T_P", "P_D", "F_INIT", "COMMUNICATION_SPEED", "T_DP"]
+def run(distance_from_central, distance_A, num_parties, max_iter, params):
+    allowed_params = [
+        "P_LINK",
+        "T_P",
+        "P_D",
+        "F_INIT",
+        "COMMUNICATION_SPEED",
+        "T_DP",
+        "T_CUT",
+    ]
     for key in params:
         if key not in allowed_params:
             warn(f"params[{key}] is not a supported parameter and will be ignored.")
     # unpack parameters
     P_LINK = params.get("P_LINK", 1.0)
-    T_P = params.get("T_P", 0)  # preparation time
+    T_P = params.get("T_P", 2 * 10 ** (-6))  # preparation time
     P_D = params.get("P_D", 0)  # dark count probability
     F_INIT = params.get("F_INIT", 1.0)  # initial fidelity of created pairs
     CS = params.get("COMMUNICATION_SPEED", C)  # communication_speed
+    T_CUT = params.get("T_CUT", 200)  # cutoff time
     try:
         T_DP = params["T_DP"]  # dephasing time
     except KeyError as e:
@@ -196,7 +205,7 @@ def run(distance_from_central, num_parties, max_iter, params):
                 distance(source, source.target_stations[1]),
             ]
         )
-        trial_time = 2 * comm_distance / C
+        trial_time = comm_distance / C
         for idx, station in enumerate(source.target_stations):
             if station.memory_noise is not None:
                 # while qubit and classical information are travelling dephasing already occurs
@@ -228,7 +237,7 @@ def run(distance_from_central, num_parties, max_iter, params):
                 distance(source, source.target_stations[1]),
             ]
         )
-        comm_time = 2 * comm_distance / C
+        comm_time = comm_distance / C
         eta = P_LINK * np.exp(-comm_distance / L_ATT)
         eta_effective = 1 - (1 - eta) * (1 - P_D) ** 2
         trial_time = T_P + comm_time  # no latency time or loading time in this model
@@ -244,8 +253,15 @@ def run(distance_from_central, num_parties, max_iter, params):
         memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
     )
 
-    angles = np.linspace(0, 2 * np.pi, num=N, endpoint=False)
+    angles = np.linspace(0, 2 * np.pi, num=N - 1, endpoint=False)
     other_stations = [
+        Station(
+            world,
+            position=np.array([0, distance_A]),
+            memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
+            memory_cutoff_time=T_CUT,
+        )
+    ] + [
         Station(
             world,
             position=np.array(
@@ -255,6 +271,7 @@ def run(distance_from_central, num_parties, max_iter, params):
                 ]
             ),
             memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
+            memory_cutoff_time=T_CUT,
         )
         for phi in angles
     ]
@@ -292,7 +309,7 @@ def run(distance_from_central, num_parties, max_iter, params):
     return protocol
 
 
-def ghz_fidelity(data: pd.DataFrame, num_parties: int):
+def lambda_plus(data: pd.DataFrame, num_parties: int):
     z0s = [mat.z0] * num_parties
     z0s = mat.tensor(*z0s)
     z1s = [mat.z1] * num_parties
@@ -303,32 +320,121 @@ def ghz_fidelity(data: pd.DataFrame, num_parties: int):
     fidelity_list = np.real_if_close(
         [np.dot(np.dot(mat.H(ghz_psi), state), ghz_psi)[0, 0] for state in states]
     )
-    fidelity = np.mean(fidelity_list)
-    fidelity_std_err = np.std(fidelity_list) / np.sqrt(len(fidelity_list))
-    return fidelity, fidelity_std_err
+    lambda_plus = fidelity_list**2
+    return lambda_plus
+
+
+def lambda_minus(data: pd.DataFrame, num_parties: int):
+    z0s = [mat.z0] * num_parties
+    z0s = mat.tensor(*z0s)
+    z1s = [mat.z1] * num_parties
+    z1s = mat.tensor(*z1s)
+    ghz_psi = 1 / np.sqrt(2) * (z0s - z1s)
+
+    states = data["state"]
+    fidelity_list = np.real_if_close(
+        [np.dot(np.dot(mat.H(ghz_psi), state), ghz_psi)[0, 0] for state in states]
+    )
+    lambda_minus = fidelity_list**2
+    return lambda_minus
+
+
+def binary_entropy(p):
+    """Calculate the binary entropy.
+
+    Parameters
+    ----------
+    p : scalar
+        Must be in interval [0, 1]. Usually an error rate.
+
+    Returns
+    -------
+    scalar
+        The binary entropy of `p`.
+
+    """
+    if p == 1 or p == 0:
+        return 0
+    else:
+        res = -p * np.log2(p) - (1 - p) * np.log2(1 - p)
+        if np.isnan(res):
+            warn(f"binary_entropy was called with p={p} and returned nan")
+        return res
+
+
+def calculate_keyrate_time(
+    lambda_plus, lambda_minus, time_interval, return_std_err=False
+):  # return_std_err=False
+
+    e_z = 1 - np.mean(lambda_plus) - np.mean(lambda_minus)
+    e_x = 0.5 * (1 - np.mean(lambda_plus) + np.mean(lambda_minus))
+    num_pairs = len(lambda_plus)
+    pair_per_time = num_pairs / time_interval
+    keyrate = pair_per_time * (1 - binary_entropy(e_x) - binary_entropy(e_z))
+    e_x_err = 0.5 * np.sqrt(np.std(lambda_plus) ** 2 + np.std(lambda_minus) ** 2)
+    e_z_err = np.sqrt(np.std(lambda_plus) ** 2 + np.std(lambda_minus) ** 2)
+    if not return_std_err:
+        return keyrate
+    # use error propagation formula
+    if e_z == 0:
+        keyrate_std = pair_per_time * np.sqrt(
+            (-np.log2(e_x) + np.log2(1 - e_x)) ** 2 * e_x_err**2
+        )
+    else:
+        keyrate_std = pair_per_time * np.sqrt(
+            (-np.log2(e_x) + np.log2(1 - e_x)) ** 2 * e_x_err**2
+            + (-np.log2(e_z) + np.log2(1 - e_z)) ** 2 * e_z_err**2
+        )
+    keyrate_std_err = keyrate_std / np.sqrt(num_pairs)
+    return keyrate, keyrate_std_err
+
+
+def kilo(list1):
+    list2 = []
+    for x in list1:
+        list2.append(x / 1000)
+
+    return list2
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    max_iter = 1e2
+    max_iter = 10
     num_parties = 4
-    lengths = np.linspace(1e3, 30e3, num=20)
-    fidelities = []
-    fidelity_std_err = []
+    distance_from_central = 4000
+    lengths = np.linspace(10, 150e3, num=50)
+    keyrates = []
+    keyrates_std_err = []
     for length in lengths:
-        print(f"{length/1000:.2f}")
         res = run(
-            distance_from_central=length,
+            distance_from_central=distance_from_central,
+            distance_A=length,
             num_parties=num_parties,
             max_iter=max_iter,
-            params={"P_LINK": 0.01, "T_DP": 100e-3, "F_INIT": 0.99},
+            params={"P_LINK": 1, "T_DP": 1, "F_INIT": 1, "T_CUT": 1000},
         )
-        evaluation = ghz_fidelity(data=res.data, num_parties=num_parties)
-        fidelities.append(evaluation[0])
-        fidelity_std_err.append(evaluation[1])
-    plt.errorbar(lengths / 1000, fidelities, yerr=fidelity_std_err, fmt="o", ms=3)
+        time_int = res.data["time"].iloc[-1]
+        l_plus = lambda_plus(data=res.data, num_parties=num_parties)
+        l_minus = lambda_minus(data=res.data, num_parties=num_parties)
+        evaluation = calculate_keyrate_time(
+            l_plus, l_minus, time_int, return_std_err=True
+        )[0]
+        error = calculate_keyrate_time(l_plus, l_minus, time_int, return_std_err=True)[
+            1
+        ]
+        keyrates.append(evaluation)
+        keyrates_std_err.append(error)
+    # plt.errorbar(lengths / 1000, kilo(keyrates), yerr=keyrates_std_err, fmt="o", ms=3)
+    dist = np.arange(1, 150, 1)
+    analytic_results = np.load("analytic_150.npy")
+    plt.plot(dist, kilo(analytic_results), "o", color="red", ms=3, label="analytisch")
+    plt.plot(
+        lengths / 1000, kilo(keyrates), "o", color="blue", ms=3, label="Simulation"
+    )
+    plt.legend()
     plt.xlabel("distance to central station [km]")
-    plt.ylabel("average fidelity F")
-    plt.grid()
+    plt.ylabel("key rate [Kbits/s]")
+    plt.yscale("log")
+    # # plt.grid()
     plt.show()
