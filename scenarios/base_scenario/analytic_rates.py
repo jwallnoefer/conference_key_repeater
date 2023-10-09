@@ -24,7 +24,7 @@ def y_2_a(p, N):
 
 
 def p(d):
-    return 10 ** (-0.02 * d)
+    return np.exp(-d / 22)
 
 
 def d(p):
@@ -32,7 +32,11 @@ def d(p):
 
 
 def h(x):
-    return -x * np.log2(x) - (1 - x) * np.log2(1 - x)
+    if x == 0 or x == 1:
+        return 0
+    else:
+        entr = -x * np.log2(x) - (1 - x) * np.log2(1 - x)
+    return entr
 
 
 # key rate in dependence of qber
@@ -181,16 +185,16 @@ def yield_per_time_bi(d_A, N):
 
 
 def multi_rate_per_time(N, d_A, d_B, fd):
-    return yield_per_time_multi(d_A) * rnc(0, 4, p(d_A), p(d_B))
+    return yield_per_time_multi(d_A) * rnc(fd, N, p(d_A), p(d_B))
 
 
 def bi_rate_per_time(N, d_A, d_B, fd):
-    return yield_per_time_bi(d_A, N) * rnc(0, 4, p(d_A), p(d_B))
+    return yield_per_time_bi(d_A, N) * r2(fd, p(d_A), p(d_B))
 
 
 ## no depolarization in simulation
-# speed of light
-c = 2.99792458 * 10**5
+# speed of light in optical fibre
+c = 2 * 10**5
 # dephasing time of the QMs
 T_2 = 1
 # preparation time of a bipartite entangled state

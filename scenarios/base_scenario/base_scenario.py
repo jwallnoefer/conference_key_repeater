@@ -400,10 +400,10 @@ def kilo(list1):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    max_iter = 10
+    max_iter = 100
     num_parties = 4
     distance_from_central = 4000
-    lengths = np.linspace(10, 150e3, num=50)
+    lengths = np.linspace(10, 150e3, num=70)
     keyrates = []
     keyrates_std_err = []
     for length in lengths:
