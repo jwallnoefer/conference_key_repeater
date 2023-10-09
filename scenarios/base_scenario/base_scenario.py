@@ -435,6 +435,6 @@ if __name__ == "__main__":
     plt.legend()
     plt.xlabel("distance to central station [km]")
     plt.ylabel("key rate [Kbits/s]")
-    plt.yscale("log")
+    # plt.yscale("log")
     # # plt.grid()
     plt.show()
