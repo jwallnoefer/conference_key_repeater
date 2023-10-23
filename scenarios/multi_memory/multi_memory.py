@@ -39,6 +39,13 @@ def is_source_event_between_stations(event, station1, station2):
     )
 
 
+@lru_cache(maxsize=1000)
+def is_event_connecting_pairs(event, pairs):
+    return isinstance(event, ConnectBellsToGHZEvent) and np.all(
+        [pair in pairs for pair in event.pairs]
+    )
+
+
 class CentralMultipartyProtocol(Protocol):
     """A GHZ distribution protocol with a single central station.
 
@@ -150,16 +157,26 @@ class CentralMultipartyProtocol(Protocol):
 
         # STEP 2: If all links are present, merge them into a GHZ state.
         num_to_merge = np.min(num_pairs_by_station)
-        if (
-            num_to_merge
-        ):  # merge the first only since this will be checked again anyways
+        if num_to_merge:
+            # merge the first only since this will be checked again anyways
             pairs = [pair_list[0] for pair_list in pairs_by_station]
-            connect_event = ConnectBellsToGHZEvent(
-                time=self.world.event_queue.current_time,
-                pairs=pairs,
-                station=self.central_station,
-            )
-            self.world.event_queue.add_event(connect_event)
+            try:
+                next(
+                    filter(
+                        lambda event: is_event_connecting_pairs(event, tuple(pairs)),
+                        self.world.event_queue.queue,
+                    )
+                )
+                is_already_scheduled = True
+            except StopIteration:
+                is_already_scheduled = False
+            if not is_already_scheduled:
+                connect_event = ConnectBellsToGHZEvent(
+                    time=self.world.event_queue.current_time,
+                    pairs=pairs,
+                    station=self.central_station,
+                )
+                self.world.event_queue.add_event(connect_event)
 
         # STEP 3: If a long range GHZ is present, save its data and delete
         #         the associated objects.
