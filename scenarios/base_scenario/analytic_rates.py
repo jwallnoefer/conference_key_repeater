@@ -34,6 +34,8 @@ def d(p):
 def h(x):
     if x == 0 or x == 1:
         return 0
+    elif x < 0:
+        return 0
     else:
         entr = -x * np.log2(x) - (1 - x) * np.log2(1 - x)
     return entr
@@ -50,10 +52,10 @@ def Q_X(x, N):
 
 ## multipartite key rate
 def rnc(f, N, p_a, p_b):
-    return 1 - h(Q_AB_comp(f, N, p_a, p_b)) - h(Q_X_comp(f, N, p_a, p_b))
+    return 1 - h(Q_AB_new(f, N, p_a, p_b)) - h(Q_X_new(f, N, p_a, p_b))
 
 
-##  bipartite
+##  bipartite with memories
 def r2(f, p_a, p_b):
     return 1 - h(Q_AB_2_mem(f)) - h(Q_X_2_mem(f, p_a, p_b))
 
@@ -61,26 +63,23 @@ def r2(f, p_a, p_b):
 ## expected dephasing
 def E_b(p_a, p_b):
     return (
-        p_a
+        np.exp(2 * d(p_b) / c)
+        * p_a
         * p_b
         / (
             (np.exp((T_p + d(p_a) / c) / T_2) + p_a - 1)
-            * (np.exp((T_p + d(p_b) / c) / T_2) + p_b - 1)
+            * (np.exp((T_p + 2 * d(p_b) / c) / T_2) + p_b - 1)
         )
     )
 
 
-def E_c(p_a):
-    return p_a * np.exp(T_p / T_2) / (np.exp((T_p + d(p_a) / c) / T_2) + p_a - 1)
-
-
 ## intermediate steps
 def A(p_a, p_b):
-    return 0.5 * (1 + E_b(p_a, p_b) * E_c(p_a))
+    return 0.5 * (1 + E_b(p_a, p_b) ** 2)
 
 
 def B(p_a, p_b):
-    return 0.5 * (1 - E_b(p_a, p_b) * E_c(p_a))
+    return 0.5 * (1 - E_b(p_a, p_b) ** 2)
 
 
 ## bipartite memory qbers
@@ -98,8 +97,6 @@ def Q_X_2_mem(f, p_a, p_b):
 
 
 ## multipartite qbers and intermediate definitions
-
-
 def theta(f, p_a, p_b):
     return (1 - f) * A(p_a, p_b) + f / 4
 
@@ -108,70 +105,48 @@ def phi(f, p_a, p_b):
     return (1 - f) * B(p_a, p_b) + f / 4
 
 
-def Theta_compl(f, N, p_a, p_b):
-    cr1 = []
+def Theta_Phi(f, N, p_a, p_b):
+    einszwei = []
     for k in range(0, N):
-        my_sum1 = (
+        sum1 = (
             scipy.special.binom(N - 1, k)
-            * theta(f, p_a, p_b) ** (N - 1 - k)
-            * (0.25 * f) ** (k)
+            * (theta(f, p_a, p_b) ** (N - 1 - k))
+            * phi(f, p_a, p_b) ** (k)
         )
-        cr1.append(my_sum1)
-    return sum(cr1)
+        einszwei.append(sum1)
+    return sum(einszwei)
 
 
-def Phi_compl(f, N, p_a, p_b):
-    cr2 = []
+def Theta_Phi_minus(f, N, p_a, p_b):
+    einszwei2 = []
     for k in range(0, N):
-        my_sum2 = (
-            scipy.special.binom(N - 1, k)
-            * phi(f, p_a, p_b) ** (N - 1 - k)
-            * (0.25 * f) ** (k)
-        )
-        cr2.append(my_sum2)
-    return sum(cr2)
-
-
-def Theta_omin(f, N, p_a, p_b):
-    cr3 = []
-    for k in range(0, N):
-        my_sum3 = (
-            (-1) ** (k)
+        sum2 = (
+            ((-1) ** k)
             * scipy.special.binom(N - 1, k)
-            * theta(f, p_a, p_b) ** (N - 1 - k)
-            * (0.25 * f) ** (k)
+            * (theta(f, p_a, p_b) ** (N - 1 - k))
+            * phi(f, p_a, p_b) ** (k)
         )
-        cr3.append(my_sum3)
-    return sum(cr3)
+        einszwei2.append(sum2)
+    return sum(einszwei2)
 
 
-def Theta_emin(f, N, p_a, p_b):
-    cr4 = []
+def only_fd(f, N):
+    einsdrei = []
     for k in range(0, N):
-        my_sum4 = (
-            (-1) ** (k + 1)
-            * scipy.special.binom(N - 1, k)
-            * theta(f, p_a, p_b) ** (N - 1 - k)
-            * (0.25 * f) ** (k)
-        )
-        cr4.append(my_sum4)
-    return sum(cr4)
+        sum2 = scipy.special.binom(N - 1, k) * ((0.25 * f) ** (N - 1))
+        einsdrei.append(sum2)
+    return sum(einsdrei)
 
 
-def Q_AB_comp(f, N, p_a, p_b):
-    return 1 - (
-        (1 - 0.5 * f) * Theta_compl(f, N, p_a, p_b)
-        + 0.5 * f * Phi_compl(f, N, p_a, p_b)
-    )
+def Q_AB_new(f, N, p_a, p_b):
+    return 1 - ((1 - 0.5 * f) * Theta_Phi(f, N, p_a, p_b) + 0.5 * f * only_fd(f, N))
 
 
-def Q_X_comp(f, N, p_a, p_b):
+def Q_X_new(f, N, p_a, p_b):
     return 0.5 * (
         1
-        - (
-            (1 - 0.75 * f) * Theta_omin(f, N, p_a, p_b)
-            + 0.25 * f * Theta_emin(f, N, p_a, p_b)
-        )
+        - (1 - 0.75 * f) * Theta_Phi_minus(f, N, p_a, p_b)
+        + 0.25 * f * Theta_Phi_minus(f, N, p_a, p_b)
     )
 
 
@@ -184,12 +159,17 @@ def yield_per_time_bi(d_A, N):
     return 1 / ((N - 1) * p(d_A) ** (-1) * d_A / c)
 
 
-def multi_rate_per_time(N, d_A, d_B, fd):
-    return yield_per_time_multi(d_A) * rnc(fd, N, p(d_A), p(d_B))
+## new multi rate
+def multi_rate_per_time(N, d_A, d_B, f):
+    return yield_per_time_multi(d_A) * rnc(f, N, p(d_A), p(d_B))
 
 
 def bi_rate_per_time(N, d_A, d_B, fd):
     return yield_per_time_bi(d_A, N) * r2(fd, p(d_A), p(d_B))
+
+
+def bi_rate_per_time_nomem(N, d_A, fd):
+    return yield_per_time_bi(d_A, N) * r(fd, 2)
 
 
 ## no depolarization in simulation
@@ -205,23 +185,14 @@ fd = 0
 N = 4
 # length of short links
 d_B = 4
-dis = np.arange(1, 150, 1)
+dis = np.arange(1, 250, 1)
 
 
-multi_rate = []
-bi_rate = []
+evaluation = []
+
 
 for i in dis:
-    multi_rate.append(multi_rate_per_time(N, i, d_B, fd))
-    bi_rate.append(bi_rate_per_time(N, i, d_B, fd))
+    evaluation.append(multi_rate_per_time(N, i, d_B, fd))
 
 
-np.save("analytic_150", multi_rate)
-
-
-plt.plot(dis, multi_rate, color="indigo", linestyle="solid", label="mQSS, $N=4$")
-plt.plot(dis, bi_rate, color="indigo", linestyle="dashed", label="bQSS, $N=4$")
-plt.xlabel("Distance long link $d_A$ in km")
-plt.ylabel("Key rate per second")
-plt.legend()
-plt.show()
+np.savez("results/ana_results", array1=dis, array2=evaluation)

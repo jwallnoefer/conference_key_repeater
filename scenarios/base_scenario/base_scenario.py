@@ -1,5 +1,6 @@
 from functools import lru_cache
 from warnings import warn
+import os
 
 import requsim.libs.matrix as mat
 import numpy as np
@@ -205,7 +206,7 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
                 distance(source, source.target_stations[1]),
             ]
         )
-        trial_time = comm_distance / C
+        trial_time = 2 * comm_distance / C
         for idx, station in enumerate(source.target_stations):
             if station.memory_noise is not None:
                 # while qubit and classical information are travelling dephasing already occurs
@@ -237,7 +238,7 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
                 distance(source, source.target_stations[1]),
             ]
         )
-        comm_time = comm_distance / C
+        comm_time = 2 * comm_distance / C
         eta = P_LINK * np.exp(-comm_distance / L_ATT)
         eta_effective = 1 - (1 - eta) * (1 - P_D) ** 2
         trial_time = T_P + comm_time  # no latency time or loading time in this model
@@ -251,6 +252,7 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
         world=world,
         position=np.array([0, 0]),
         memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
+        memory_cutoff_time=T_CUT,
     )
 
     angles = np.linspace(0, 2 * np.pi, num=N - 1, endpoint=False)
@@ -259,7 +261,7 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
             world,
             position=np.array([0, distance_A]),
             memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
-            memory_cutoff_time=T_CUT,
+            # memory_cutoff_time=T_CUT#,
         )
     ] + [
         Station(
@@ -270,8 +272,8 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
                     distance_from_central * np.sin(phi),
                 ]
             ),
-            memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
-            memory_cutoff_time=T_CUT,
+            memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP)  # ,
+            # memory_cutoff_time=T_CUT#,
         )
         for phi in angles
     ]
@@ -317,10 +319,9 @@ def lambda_plus(data: pd.DataFrame, num_parties: int):
     ghz_psi = 1 / np.sqrt(2) * (z0s + z1s)
 
     states = data["state"]
-    fidelity_list = np.real_if_close(
+    lambda_plus = np.real_if_close(
         [np.dot(np.dot(mat.H(ghz_psi), state), ghz_psi)[0, 0] for state in states]
     )
-    lambda_plus = fidelity_list**2
     return lambda_plus
 
 
@@ -332,10 +333,9 @@ def lambda_minus(data: pd.DataFrame, num_parties: int):
     ghz_psi = 1 / np.sqrt(2) * (z0s - z1s)
 
     states = data["state"]
-    fidelity_list = np.real_if_close(
+    lambda_minus = np.real_if_close(
         [np.dot(np.dot(mat.H(ghz_psi), state), ghz_psi)[0, 0] for state in states]
     )
-    lambda_minus = fidelity_list**2
     return lambda_minus
 
 
@@ -362,31 +362,15 @@ def binary_entropy(p):
         return res
 
 
-def calculate_keyrate_time(
-    lambda_plus, lambda_minus, time_interval, return_std_err=False
-):  # return_std_err=False
-
-    e_z = 1 - np.mean(lambda_plus) - np.mean(lambda_minus)
-    e_x = 0.5 * (1 - np.mean(lambda_plus) + np.mean(lambda_minus))
+def calculate_keyrate_time(lambda_plus, lambda_minus, time_interval):
+    e_z_list = 1 - lambda_plus - lambda_minus
+    e_x_list = 0.5 * (1 - lambda_plus + lambda_minus)
+    e_z = np.mean(lambda_plus)
+    e_x = np.mean(lambda_minus)
     num_pairs = len(lambda_plus)
     pair_per_time = num_pairs / time_interval
     keyrate = pair_per_time * (1 - binary_entropy(e_x) - binary_entropy(e_z))
-    e_x_err = 0.5 * np.sqrt(np.std(lambda_plus) ** 2 + np.std(lambda_minus) ** 2)
-    e_z_err = np.sqrt(np.std(lambda_plus) ** 2 + np.std(lambda_minus) ** 2)
-    if not return_std_err:
-        return keyrate
-    # use error propagation formula
-    if e_z == 0:
-        keyrate_std = pair_per_time * np.sqrt(
-            (-np.log2(e_x) + np.log2(1 - e_x)) ** 2 * e_x_err**2
-        )
-    else:
-        keyrate_std = pair_per_time * np.sqrt(
-            (-np.log2(e_x) + np.log2(1 - e_x)) ** 2 * e_x_err**2
-            + (-np.log2(e_z) + np.log2(1 - e_z)) ** 2 * e_z_err**2
-        )
-    keyrate_std_err = keyrate_std / np.sqrt(num_pairs)
-    return keyrate, keyrate_std_err
+    return keyrate
 
 
 def kilo(list1):
@@ -400,41 +384,44 @@ def kilo(list1):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    max_iter = 100
+    max_iter = 10**5
     num_parties = 4
     distance_from_central = 4000
-    lengths = np.linspace(10, 150e3, num=70)
-    keyrates = []
-    keyrates_std_err = []
-    for length in lengths:
-        res = run(
-            distance_from_central=distance_from_central,
-            distance_A=length,
-            num_parties=num_parties,
-            max_iter=max_iter,
-            params={"P_LINK": 1, "T_DP": 1, "F_INIT": 1, "T_CUT": 1000},
-        )
-        time_int = res.data["time"].iloc[-1]
-        l_plus = lambda_plus(data=res.data, num_parties=num_parties)
-        l_minus = lambda_minus(data=res.data, num_parties=num_parties)
-        evaluation = calculate_keyrate_time(
-            l_plus, l_minus, time_int, return_std_err=True
-        )[0]
-        error = calculate_keyrate_time(l_plus, l_minus, time_int, return_std_err=True)[
-            1
-        ]
-        keyrates.append(evaluation)
-        keyrates_std_err.append(error)
-    # plt.errorbar(lengths / 1000, kilo(keyrates), yerr=keyrates_std_err, fmt="o", ms=3)
-    dist = np.arange(1, 150, 1)
-    analytic_results = np.load("analytic_150.npy")
-    plt.plot(dist, kilo(analytic_results), "o", color="red", ms=3, label="analytisch")
-    plt.plot(
-        lengths / 1000, kilo(keyrates), "o", color="blue", ms=3, label="Simulation"
+    lengths = np.linspace(80, 200e3, num=100)
+    # job array evaluation to distribute tasks on cluster
+    task_index = int(os.environ["SLURM_ARRAY_TASK_ID"])
+    length = lengths[task_index]
+    res = run(
+        distance_from_central=distance_from_central,
+        distance_A=length,
+        num_parties=num_parties,
+        max_iter=max_iter,
+        params={"P_LINK": 1, "T_DP": 1, "F_INIT": 1, "T_CUT": 300},
     )
-    plt.legend()
-    plt.xlabel("distance to central station [km]")
-    plt.ylabel("key rate [Kbits/s]")
-    plt.yscale("log")
-    # # plt.grid()
-    plt.show()
+    time_int = res.data["time"].iloc[-1]
+    l_plus = lambda_plus(data=res.data, num_parties=num_parties)
+    l_minus = lambda_minus(data=res.data, num_parties=num_parties)
+    evaluation = calculate_keyrate_time(l_plus, l_minus, time_int, return_std_err=False)
+    output_file = "num_keyrates.txt"
+    # append the output to the file
+    with open(output_file, "a") as file:
+        file.write(f"Task {task_index}: Length = {length}, Rate = {evaluation}\n")
+    # print out array of keyrates
+    # keyrates = []
+    # for length in lengths:
+    #     res = run(
+    #         distance_from_central=distance_from_central,
+    #         distance_A=length,
+    #         num_parties=num_parties,
+    #         max_iter=max_iter,
+    #         params={"P_LINK": 1, "T_DP": 1, "F_INIT": 1, "T_CUT": 300},
+    #     )
+    #     time_int = res.data["time"].iloc[-1]
+    #     l_plus = lambda_plus(data=res.data, num_parties=num_parties)
+    #     l_minus = lambda_minus(data=res.data, num_parties=num_parties)
+    #     evaluation = calculate_keyrate_time(
+    #         l_plus, l_minus, time_int
+    #     )
+    #     keyrates.append(evaluation)
+    # print(keyrates)
+    # print(lengths)
