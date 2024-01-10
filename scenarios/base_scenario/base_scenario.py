@@ -401,7 +401,7 @@ if __name__ == "__main__":
     time_int = res.data["time"].iloc[-1]
     l_plus = lambda_plus(data=res.data, num_parties=num_parties)
     l_minus = lambda_minus(data=res.data, num_parties=num_parties)
-    evaluation = calculate_keyrate_time(l_plus, l_minus, time_int, return_std_err=False)
+    evaluation = calculate_keyrate_time(l_plus, l_minus, time_int)
     output_file = "num_keyrates.txt"
     # append the output to the file
     with open(output_file, "a") as file:
