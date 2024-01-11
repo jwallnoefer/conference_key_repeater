@@ -342,7 +342,7 @@ def ghz_fidelity(data: pd.DataFrame, num_parties: int):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    max_iter = 1e2
+    max_iter = 1e3
     num_parties = 4
     lengths = np.linspace(1e3, 30e3, num=20)
     fidelities = []
@@ -354,6 +354,7 @@ if __name__ == "__main__":
             num_parties=num_parties,
             max_iter=max_iter,
             params={"P_LINK": 0.01, "T_DP": 100e-3, "F_INIT": 0.99},
+            num_memories=1,
         )
         evaluation = ghz_fidelity(data=res.data, num_parties=num_parties)
         fidelities.append(evaluation[0])
@@ -367,7 +368,7 @@ if __name__ == "__main__":
             num_parties=num_parties,
             max_iter=max_iter,
             params={"P_LINK": 0.01, "T_DP": 100e-3, "F_INIT": 0.99},
-            num_memories=2,
+            num_memories=100,
         )
         evaluation = ghz_fidelity(data=res.data, num_parties=num_parties)
         fidelities_2.append(evaluation[0])
