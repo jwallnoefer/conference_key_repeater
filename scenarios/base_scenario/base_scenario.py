@@ -458,7 +458,7 @@ def kilo(list1):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    max_iter = 10**2
+    max_iter = 10**5
     num_parties = 4
     distance_from_central = 4000
     lengths = np.linspace(80, 200e3, num=100)
