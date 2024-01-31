@@ -60,8 +60,36 @@ def r2(f, p_a, p_b):
     return 1 - h(Q_AB_2_mem(f)) - h(Q_X_2_mem(f, p_a, p_b))
 
 
-## expected dephasing
+## expected dephasing at Bob's site
 def E_b(p_a, p_b):
+    # Bob waits for teleportation measurement + correction
+    return (
+        np.exp(2 * d(p_b) / c)
+        * p_a
+        * p_b
+        / (
+            (np.exp((T_p + d(p_a) / c) / T_2) + p_a - 1)
+            * (np.exp((T_p + 2 * d(p_b) / c) / T_2) + p_b - 1)
+        )
+    )
+
+    # Bobs wait, no correction
+    # return (
+    #     np.exp(d(p_b) / c)
+    #     * p_a
+    #     * p_b
+    #     / (
+    #         (np.exp((T_p + d(p_a) / c) / T_2) + p_a - 1)
+    #         * (np.exp((T_p + 2 * d(p_b) / c) / T_2) + p_b - 1)
+    #     )
+    # )
+
+    # Bob measures directly
+    # return 1
+
+
+## expected dephasing at the central station
+def E_c(p_a, p_b):
     return (
         np.exp(2 * d(p_b) / c)
         * p_a
@@ -75,11 +103,11 @@ def E_b(p_a, p_b):
 
 ## intermediate steps
 def A(p_a, p_b):
-    return 0.5 * (1 + E_b(p_a, p_b) ** 2)
+    return 0.5 * (1 + E_b(p_a, p_b) * E_c(p_a, p_b))
 
 
 def B(p_a, p_b):
-    return 0.5 * (1 - E_b(p_a, p_b) ** 2)
+    return 0.5 * (1 - E_b(p_a, p_b) * E_c(p_a, p_b))
 
 
 ## bipartite memory qbers
@@ -185,14 +213,17 @@ fd = 0
 N = 4
 # length of short links
 d_B = 4
-dis = np.arange(1, 250, 1)
+dis = np.arange(1, 200, 1)
 
 
+# Q_X = []
 evaluation = []
 
 
 for i in dis:
+    print(i, multi_rate_per_time(N, i, d_B, fd))
+    # Q_X.append(Q_X_new(fd, N, p(i), p(d_B)))
     evaluation.append(multi_rate_per_time(N, i, d_B, fd))
 
 
-np.savez("results/ana_results", array1=dis, array2=evaluation)
+np.savez("results/ana_results_original_protocol", array1=dis, array2=evaluation)

@@ -171,7 +171,7 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
         "F_INIT",
         "COMMUNICATION_SPEED",
         "T_DP",
-        "T_CUT",
+        # "T_CUT",
     ]
     for key in params:
         if key not in allowed_params:
@@ -182,7 +182,7 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
     P_D = params.get("P_D", 0)  # dark count probability
     F_INIT = params.get("F_INIT", 1.0)  # initial fidelity of created pairs
     CS = params.get("COMMUNICATION_SPEED", C)  # communication_speed
-    T_CUT = params.get("T_CUT", 200)  # cutoff time
+    # T_CUT = params.get("T_CUT", 2000)  # cutoff time
     try:
         T_DP = params["T_DP"]  # dephasing time
     except KeyError as e:
@@ -194,7 +194,42 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
     N = num_parties
 
     @lru_cache()  # caching only makes sense with stationary stations and sources
-    def state_generation(source):
+    def state_generation_alice(source):
+        state = F_INIT * (mat.phiplus @ mat.H(mat.phiplus)) + (1 - F_INIT) / 3 * (
+            mat.psiplus @ mat.H(mat.psiplus)
+            + mat.phiminus @ mat.H(mat.phiminus)
+            + mat.psiminus @ mat.H(mat.psiminus)
+        )
+        comm_distance = np.max(
+            [
+                distance(source, source.target_stations[0]),
+                distance(source, source.target_stations[1]),
+            ]
+        )
+        trial_time = comm_distance / C
+        for idx, station in enumerate(source.target_stations):
+            if station.memory_noise is not None:
+                # while qubit and classical information are travelling dephasing already occurs
+                # the amount of time depends on where the station is located
+                storage_time = trial_time - distance(source, station) / C
+                state = apply_single_qubit_map(
+                    map_func=station.memory_noise,
+                    qubit_index=idx,
+                    rho=state,
+                    t=storage_time,
+                )
+            if station.dark_count_probability is not None:
+                # dark counts are handled here because the information about eta is needed for that
+                eta = P_LINK * np.exp(-comm_distance / L_ATT)
+                state = apply_single_qubit_map(
+                    map_func=w_noise_channel,
+                    qubit_index=idx,
+                    rho=state,
+                    alpha=alpha_of_eta(eta=eta, p_d=station.dark_count_probability),
+                )
+        return state
+
+    def state_generation_bob(source):
         state = F_INIT * (mat.phiplus @ mat.H(mat.phiplus)) + (1 - F_INIT) / 3 * (
             mat.psiplus @ mat.H(mat.psiplus)
             + mat.phiminus @ mat.H(mat.phiminus)
@@ -229,7 +264,23 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
                 )
         return state
 
-    def time_distribution(source):
+    def time_distribution_alice(source):
+        # this is specifically for a source that is housed directly at a station, otherwise what
+        # constitutes one trial is more involved
+        comm_distance = np.max(
+            [
+                distance(source, source.target_stations[0]),
+                distance(source, source.target_stations[1]),
+            ]
+        )
+        comm_time = comm_distance / C
+        eta = P_LINK * np.exp(-comm_distance / L_ATT)
+        eta_effective = 1 - (1 - eta) * (1 - P_D) ** 2
+        trial_time = T_P + comm_time  # no latency time or loading time in this model
+        random_num = np.random.geometric(eta_effective)
+        return random_num * trial_time
+
+    def time_distribution_bob(source):
         # this is specifically for a source that is housed directly at a station, otherwise what
         # constitutes one trial is more involved
         comm_distance = np.max(
@@ -251,11 +302,13 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
     central_station = Station(
         world=world,
         position=np.array([0, 0]),
-        memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
-        memory_cutoff_time=T_CUT,
+        memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP)  # ,
+        # memory_cutoff_time=T_CUT,
     )
 
     angles = np.linspace(0, 2 * np.pi, num=N - 1, endpoint=False)
+
+    # asymmetric setup, other_stations[0] is placed distance_A away from central station, other_stations[1:] are placed distance_from_central away from central station
     other_stations = [
         Station(
             world,
@@ -278,15 +331,36 @@ def run(distance_from_central, distance_A, num_parties, max_iter, params):
         for phi in angles
     ]
 
+    # sources at central station
+    # sources = [
+    #     SchedulingSource(
+    #         world=world,
+    #         position=central_station.position,
+    #         target_stations=[central_station, station],
+    #         time_distribution=time_distribution_alice,
+    #         state_generation=state_generation_alice,
+    #     )
+    #     for station in other_stations
+    # ]
+
+    # source at Alice's site for the long link, sources at central station for the short links
     sources = [
+        SchedulingSource(
+            world=world,
+            position=other_stations[0].position,
+            target_stations=[other_stations[0], central_station],
+            time_distribution=time_distribution_alice,
+            state_generation=state_generation_alice,
+        )
+    ] + [
         SchedulingSource(
             world=world,
             position=central_station.position,
             target_stations=[central_station, station],
-            time_distribution=time_distribution,
-            state_generation=state_generation,
+            time_distribution=time_distribution_bob,
+            state_generation=state_generation_bob,
         )
-        for station in other_stations
+        for station in other_stations[1:]
     ]
 
     protocol = CentralMultipartyProtocol(
@@ -355,6 +429,8 @@ def binary_entropy(p):
     """
     if p == 1 or p == 0:
         return 0
+    elif p < 0:
+        return 0
     else:
         res = -p * np.log2(p) - (1 - p) * np.log2(1 - p)
         if np.isnan(res):
@@ -363,10 +439,8 @@ def binary_entropy(p):
 
 
 def calculate_keyrate_time(lambda_plus, lambda_minus, time_interval):
-    e_z_list = 1 - lambda_plus - lambda_minus
-    e_x_list = 0.5 * (1 - lambda_plus + lambda_minus)
-    e_z = np.mean(lambda_plus)
-    e_x = np.mean(lambda_minus)
+    e_z = 1 - np.mean(lambda_plus) - np.mean(lambda_minus)
+    e_x = 0.5 * (1 - np.mean(lambda_plus) + np.mean(lambda_minus))
     num_pairs = len(lambda_plus)
     pair_per_time = num_pairs / time_interval
     keyrate = pair_per_time * (1 - binary_entropy(e_x) - binary_entropy(e_z))
@@ -384,44 +458,42 @@ def kilo(list1):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    max_iter = 10**5
+    max_iter = 10**2
     num_parties = 4
     distance_from_central = 4000
     lengths = np.linspace(80, 200e3, num=100)
     # job array evaluation to distribute tasks on cluster
-    task_index = int(os.environ["SLURM_ARRAY_TASK_ID"])
-    length = lengths[task_index]
-    res = run(
-        distance_from_central=distance_from_central,
-        distance_A=length,
-        num_parties=num_parties,
-        max_iter=max_iter,
-        params={"P_LINK": 1, "T_DP": 1, "F_INIT": 1, "T_CUT": 300},
-    )
-    time_int = res.data["time"].iloc[-1]
-    l_plus = lambda_plus(data=res.data, num_parties=num_parties)
-    l_minus = lambda_minus(data=res.data, num_parties=num_parties)
-    evaluation = calculate_keyrate_time(l_plus, l_minus, time_int)
-    output_file = "num_keyrates.txt"
-    # append the output to the file
-    with open(output_file, "a") as file:
-        file.write(f"Task {task_index}: Length = {length}, Rate = {evaluation}\n")
-    # print out array of keyrates
-    # keyrates = []
-    # for length in lengths:
-    #     res = run(
-    #         distance_from_central=distance_from_central,
-    #         distance_A=length,
-    #         num_parties=num_parties,
-    #         max_iter=max_iter,
-    #         params={"P_LINK": 1, "T_DP": 1, "F_INIT": 1, "T_CUT": 300},
-    #     )
-    #     time_int = res.data["time"].iloc[-1]
-    #     l_plus = lambda_plus(data=res.data, num_parties=num_parties)
-    #     l_minus = lambda_minus(data=res.data, num_parties=num_parties)
-    #     evaluation = calculate_keyrate_time(
-    #         l_plus, l_minus, time_int
-    #     )
-    #     keyrates.append(evaluation)
-    # print(keyrates)
-    # print(lengths)
+    # task_index = int(os.environ["SLURM_ARRAY_TASK_ID"])
+    # length = lengths[task_index]
+    # res = run(
+    #     distance_from_central=distance_from_central,
+    #     distance_A=length,
+    #     num_parties=num_parties,
+    #     max_iter=max_iter,
+    #     params={"P_LINK": 1, "T_DP": 1, "F_INIT": 1, "T_CUT": None},
+    # )
+    # time_int = res.data["time"].iloc[-1]
+    # l_plus = lambda_plus(data=res.data, num_parties=num_parties)
+    # l_minus = lambda_minus(data=res.data, num_parties=num_parties)
+    # evaluation = calculate_keyrate_time(l_plus, l_minus, time_int)
+    # output_file = "num_results.txt"
+    # # append the output to the file
+    # with open(output_file, "a") as file:
+    #     file.write(f"Task {task_index}: Length = {length}, Rate = {evaluation}\n")
+
+    # save lengths and keyrates
+    key_rates = []
+    for length in lengths:
+        res = run(
+            distance_from_central=distance_from_central,
+            distance_A=length,
+            num_parties=num_parties,
+            max_iter=max_iter,
+            params={"P_LINK": 1, "T_DP": 1, "F_INIT": 1},  # , "T_CUT": None},
+        )
+        time_int = res.data["time"].iloc[-1]
+        l_plus = lambda_plus(data=res.data, num_parties=num_parties)
+        l_minus = lambda_minus(data=res.data, num_parties=num_parties)
+        evaluation = calculate_keyrate_time(l_plus, l_minus, time_int)
+        key_rates.append(evaluation)
+    np.savez("results/num_results", array1=lengths, array2=key_rates)
