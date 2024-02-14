@@ -87,11 +87,15 @@ if __name__ == "__main__":
             err = submit.stderr.decode("ascii")
             if err:
                 print(err)
-        collect_command = base_command + [
-            str(path),
-            str(case),
-            "--collect",
-        ]
+        collect_command = (
+            python_run_command
+            + ["run_tools/run_case.py"]
+            + [
+                str(path),
+                str(case),
+                "--collect",
+            ]
+        )
         submit = subprocess.run(collect_command, capture_output=True)
         err = submit.stderr.decode("ascii")
         if err:

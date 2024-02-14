@@ -30,7 +30,7 @@ cases = []
 # }
 
 case_name = "example_case"
-num_parts = 128
+num_parts = 64
 max_iter = 100  # 1e5
 num_parties = 4
 base_params = {
@@ -40,7 +40,7 @@ base_params = {
     "P_D": 1e-6,  # dark count probability
     "T_DP": 100e-3,  # dephasing time
 }
-lengths = np.linspace(10e3, 200e3, num=num_parts)
+lengths = np.linspace(1e3, 75e3, num=num_parts)
 
 case_specification = {
     "name": case_name,
@@ -50,19 +50,36 @@ case_specification = {
     "case_args": {
         part: {
             "distance_from_central": lengths[part],
-            "num_parties": 4,
-            "max_iter": 1e5,
+            "num_parties": num_parties,
+            "max_iter": max_iter,
             "params": {
                 "P_LINK": 0.01,
-                "F_INIT": 0.99,
+                "F_INIT": 0.999,
                 "T_P": 1e-6,
                 "P_D": 1e-6,
-                "T_DP": 100e-3,
+                "T_DP": 1,
             },
         }
         for part in range(num_parts)
     },
 }
+cases.append(case_specification)
+
+
+num_cases = len(cases)
+
+if __name__ == "__main__":
+    start_idx = 0
+    curr_name = cases[0]["name"]
+    for idx, case_spec in enumerate(cases):
+        if case_spec["name"] == curr_name:
+            continue
+        else:
+            print(f"Case {curr_name} has case_numbers: {start_idx}-{idx-1}")
+            start_idx = idx
+            curr_name = case_spec["name"]
+    # then print the last
+    print(f"Case {curr_name} has case_numbers: {start_idx}-{num_cases - 1}")
 
 
 def case_args(case, part):

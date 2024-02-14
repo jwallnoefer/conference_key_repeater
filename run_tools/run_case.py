@@ -19,7 +19,9 @@ Options:
 from docopt import docopt
 import sys
 import os
-from requsim.tools.evaluation import standard_bipartite_evaluation
+
+# from requsim.tools.evaluation import standard_bipartite_evaluation
+from common.evaluation import standard_ghz_evaluation
 import pandas as pd
 from datetime import datetime
 
@@ -79,7 +81,7 @@ if __name__ == "__main__":
             res = p_return.data
             res.to_pickle(os.path.join(output_path, f"part{part}.bz2"))
             evaluated_res = pd.DataFrame(
-                [standard_bipartite_evaluation(res)],
+                [standard_ghz_evaluation(res)],
                 columns=[
                     "raw_rate",
                     "fidelity",
