@@ -71,9 +71,57 @@ def generate_round_based_notify_both(f_init, p_link, t_p, p_d, comm_speed=C):
         random_num = np.random.geometric(eta_effective)
         return random_num * trial_time
 
+    # specifically for mode="measure" and source_position="outer"
+    def state_generation_measure_outer(source):
+        state = f_init * (mat.phiplus @ mat.H(mat.phiplus)) + (1 - f_init) / 3 * (
+            mat.psiplus @ mat.H(mat.psiplus)
+            + mat.phiminus @ mat.H(mat.phiminus)
+            + mat.psiminus @ mat.H(mat.psiminus)
+        )
+        station_distance = distance(
+            source.target_stations[0], source.target_stations[1]
+        )
+        for idx, station in enumerate(source.target_stations):
+            if station.memory_noise is not None:
+                # while qubit and classical information are travelling dephasing already occurs
+                # the amount of time depends on where the station is located
+                storage_time = 0
+                state = apply_single_qubit_map(
+                    map_func=station.memory_noise,
+                    qubit_index=idx,
+                    rho=state,
+                    t=storage_time,
+                )
+            if station.dark_count_probability is not None:
+                # dark counts are handled here because the information about eta is needed for that
+                eta = p_link * np.exp(-station_distance / L_ATT)
+                state = apply_single_qubit_map(
+                    map_func=w_noise_channel,
+                    qubit_index=idx,
+                    rho=state,
+                    alpha=alpha_of_eta(eta=eta, p_d=station.dark_count_probability),
+                )
+        return state
+
+    def time_distribution_measure_outer(source):
+        # this is specifically for a source that is housed directly at a station, otherwise what
+        # constitutes one trial is more involved
+        comm_distance = np.max(
+            [
+                distance(source, source.target_stations[0]),
+                distance(source, source.target_stations[1]),
+            ]
+        )
+        eta = p_link * np.exp(-comm_distance / L_ATT)
+        eta_effective = 1 - (1 - eta) * (1 - p_d) ** 2
+        random_num = np.random.geometric(eta_effective)
+        return random_num * t_p
+
     return {
         "state_generation": state_generation,
         "time_distribution": time_distribution,
+        "state_generation_measure_outer": state_generation_measure_outer,
+        "time_distribution_measure_outer": time_distribution_measure_outer,
     }
 
 

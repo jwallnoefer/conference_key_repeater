@@ -163,7 +163,14 @@ def alpha_of_eta(eta, p_d):
     return eta * (1 - p_d) / (1 - (1 - eta) * (1 - p_d) ** 2)
 
 
-def run(distance_from_central, num_parties, max_iter, params):
+def run(
+    distance_from_central,
+    num_parties,
+    max_iter,
+    params,
+    mode="distribute",
+    source_position="central",
+):
     allowed_params = ["P_LINK", "T_P", "P_D", "F_INIT", "COMMUNICATION_SPEED", "T_DP"]
     for key in params:
         if key not in allowed_params:
@@ -190,13 +197,17 @@ def run(distance_from_central, num_parties, max_iter, params):
     state_generation = source_funcs["state_generation"]
     time_distribution = source_funcs["time_distribution"]
 
+    # for source_position="outer" and mode="measure"
+    state_generation_measure_outer = source_funcs["state_generation_measure_outer"]
+    time_distribution_measure_outer = source_funcs["time_distribution_measure_outer"]
+
     # setup scenario
     world = World()
 
     central_station = Station(
         world=world,
         position=np.array([0, 0]),
-        memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
+        memory_noise=None,
     )
 
     angles = np.linspace(0, 2 * np.pi, num=N, endpoint=False)
@@ -209,21 +220,84 @@ def run(distance_from_central, num_parties, max_iter, params):
                     distance_from_central * np.sin(phi),
                 ]
             ),
-            memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
+            memory_noise=None,
         )
         for phi in angles
     ]
 
-    sources = [
-        SchedulingSource(
-            world=world,
-            position=central_station.position,
-            target_stations=[central_station, station],
-            time_distribution=time_distribution,
-            state_generation=state_generation,
+    if mode == "distribute":
+        for station in other_stations + [central_station]:
+            station.memory_noise = construct_dephasing_noise_channel(
+                dephasing_time=T_DP
+            )
+
+        if source_position == "central":
+            sources = [
+                SchedulingSource(
+                    world=world,
+                    position=central_station.position,
+                    target_stations=[central_station, station],
+                    time_distribution=time_distribution,
+                    state_generation=state_generation,
+                )
+                for station in other_stations
+            ]
+
+        elif source_position == "outer":
+            sources = [
+                SchedulingSource(
+                    world=world,
+                    position=station.position,
+                    target_stations=[station, central_station],
+                    time_distribution=time_distribution_measure_outer,
+                    state_generation=state_generation_measure_outer,
+                )
+                for station in other_stations
+            ]
+
+        else:
+            raise ValueError(
+                f"Unsupported source_position: {source_position}. Supported values are 'central' and 'outer'."
+            )
+
+    elif mode == "measure":
+        central_station.memory_noise = construct_dephasing_noise_channel(
+            dephasing_time=T_DP
         )
-        for station in other_stations
-    ]
+
+        if source_position == "central":
+            sources = [
+                SchedulingSource(
+                    world=world,
+                    position=central_station.position,
+                    target_stations=[central_station, station],
+                    time_distribution=time_distribution,
+                    state_generation=state_generation,
+                )
+                for station in other_stations
+            ]
+
+        elif source_position == "outer":
+            sources = [
+                SchedulingSource(
+                    world=world,
+                    position=station.position,
+                    target_stations=[station, central_station],
+                    time_distribution=time_distribution_measure_outer,
+                    state_generation=state_generation_measure_outer,
+                )
+                for station in other_stations
+            ]
+
+        else:
+            raise ValueError(
+                f"Unsupported source_position: {source_position}. Supported values are 'central' and 'outer'."
+            )
+
+    else:
+        raise ValueError(
+            f"Unsupported mode: {mode}. Supported modes are 'distribute' and 'measure'."
+        )
 
     protocol = CentralMultipartyProtocol(
         world=world,
@@ -268,18 +342,21 @@ if __name__ == "__main__":
 
     max_iter = 1e2
     num_parties = 4
-    lengths = np.linspace(1e3, 30e3, num=20)
+    lengths = np.linspace(1e3, 30e3, num=1)
     fidelities = []
     fidelity_std_err = []
     for length in lengths:
-        print(f"{length/1000:.2f}")
+        # print(f"{length/1000:.2f}")
         res = run(
             distance_from_central=length,
             num_parties=num_parties,
             max_iter=max_iter,
             params={"P_LINK": 0.01, "T_DP": 100e-3, "F_INIT": 0.99},
+            mode="distribute",
+            source_position="central",
         )
         evaluation = ghz_fidelity(data=res.data, num_parties=num_parties)
+        print(evaluation[0])
         fidelities.append(evaluation[0])
         fidelity_std_err.append(evaluation[1])
     plt.errorbar(lengths / 1000, fidelities, yerr=fidelity_std_err, fmt="o", ms=3)
