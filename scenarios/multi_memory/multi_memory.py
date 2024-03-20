@@ -165,7 +165,7 @@ class CentralMultipartyProtocol(Protocol):
         num_to_merge = np.min(num_pairs_by_station)
         if num_to_merge:
             # merge the first only since this will be checked again anyways
-            pairs = [pair_list[0] for pair_list in pairs_by_station]
+            pairs = [pair_list[-1] for pair_list in pairs_by_station] # merge newest pairs if possible
             try:
                 next(
                     filter(
