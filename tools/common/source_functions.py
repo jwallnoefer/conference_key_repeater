@@ -55,6 +55,22 @@ def generate_round_based_notify_both(f_init, p_link, t_p, p_d, comm_speed=C):
                 )
         return state
 
+    def time_distribution(source):
+        # this is specifically for a source that is housed directly at a station, otherwise what
+        # constitutes one trial is more involved
+        comm_distance = np.max(
+            [
+                distance(source, source.target_stations[0]),
+                distance(source, source.target_stations[1]),
+            ]
+        )
+        comm_time = 2 * comm_distance / C
+        eta = p_link * np.exp(-comm_distance / L_ATT)
+        eta_effective = 1 - (1 - eta) * (1 - p_d) ** 2
+        trial_time = t_p + comm_time
+        random_num = np.random.geometric(eta_effective)
+        return random_num * trial_time
+
     def state_generation_distribute_outer(source):
         state = f_init * (mat.phiplus @ mat.H(mat.phiplus)) + (1 - f_init) / 3 * (
             mat.psiplus @ mat.H(mat.psiplus)
