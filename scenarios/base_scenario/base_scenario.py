@@ -201,6 +201,14 @@ def run(
     state_generation_measure_outer = source_funcs["state_generation_measure_outer"]
     time_distribution_measure_outer = source_funcs["time_distribution_measure_outer"]
 
+    # for source_position="outer" and mode="distribute"
+    state_generation_distribute_outer = source_funcs[
+        "state_generation_distribute_outer"
+    ]
+    time_distribution_distribute_outer = source_funcs[
+        "time_distribution_distribute_outer"
+    ]
+
     # setup scenario
     world = World()
 
@@ -249,8 +257,8 @@ def run(
                     world=world,
                     position=station.position,
                     target_stations=[station, central_station],
-                    time_distribution=time_distribution_measure_outer,
-                    state_generation=state_generation_measure_outer,
+                    time_distribution=time_distribution_distribute_outer,
+                    state_generation=state_generation_distribute_outer,
                 )
                 for station in other_stations
             ]

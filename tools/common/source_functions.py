@@ -55,7 +55,48 @@ def generate_round_based_notify_both(f_init, p_link, t_p, p_d, comm_speed=C):
                 )
         return state
 
-    def time_distribution(source):
+    def state_generation_distribute_outer(source):
+        state = f_init * (mat.phiplus @ mat.H(mat.phiplus)) + (1 - f_init) / 3 * (
+            mat.psiplus @ mat.H(mat.psiplus)
+            + mat.phiminus @ mat.H(mat.phiminus)
+            + mat.psiminus @ mat.H(mat.psiminus)
+        )
+        station_distance = distance(
+            source.target_stations[0], source.target_stations[1]
+        )
+        comm_distance = (
+            np.max(
+                [
+                    distance(source, source.target_stations[0]),
+                    distance(source, source.target_stations[1]),
+                ]
+            )
+            + station_distance
+        )
+        time_until_ready = station_distance / comm_speed
+        for idx, station in enumerate(source.target_stations):
+            if station.memory_noise is not None:
+                # while qubit and classical information are travelling dephasing already occurs
+                # the amount of time depends on where the station is located
+                storage_time = time_until_ready - distance(source, station) / C
+                state = apply_single_qubit_map(
+                    map_func=station.memory_noise,
+                    qubit_index=idx,
+                    rho=state,
+                    t=storage_time,
+                )
+            if station.dark_count_probability is not None:
+                # dark counts are handled here because the information about eta is needed for that
+                eta = p_link * np.exp(-station_distance / L_ATT)
+                state = apply_single_qubit_map(
+                    map_func=w_noise_channel,
+                    qubit_index=idx,
+                    rho=state,
+                    alpha=alpha_of_eta(eta=eta, p_d=station.dark_count_probability),
+                )
+        return state
+
+    def time_distribution_distribute_outer(source):
         # this is specifically for a source that is housed directly at a station, otherwise what
         # constitutes one trial is more involved
         comm_distance = np.max(
