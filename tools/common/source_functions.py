@@ -177,6 +177,8 @@ def generate_round_based_notify_both(f_init, p_link, t_p, p_d, comm_speed=C):
     return {
         "state_generation": state_generation,
         "time_distribution": time_distribution,
+        "state_generation_distribute_outer": state_generation_distribute_outer,
+        "time_distribution_distribute_outer": time_distribution_distribute_outer,
         "state_generation_measure_outer": state_generation_measure_outer,
         "time_distribution_measure_outer": time_distribution_measure_outer,
     }
