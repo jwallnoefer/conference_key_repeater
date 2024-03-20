@@ -105,7 +105,7 @@ def generate_round_based_notify_both(f_init, p_link, t_p, p_d, comm_speed=C):
                 distance(source, source.target_stations[1]),
             ]
         )
-        comm_time = 2 * comm_distance / C
+        comm_time = comm_distance / C
         eta = p_link * np.exp(-comm_distance / L_ATT)
         eta_effective = 1 - (1 - eta) * (1 - p_d) ** 2
         trial_time = t_p + comm_time
