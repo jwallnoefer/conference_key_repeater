@@ -200,8 +200,25 @@ def alpha_of_eta(eta, p_d):
     return eta * (1 - p_d) / (1 - (1 - eta) * (1 - p_d) ** 2)
 
 
-def run(distance_from_central, num_parties, max_iter, params, num_memories=1):
-    allowed_params = ["P_LINK", "T_P", "P_D", "F_INIT", "COMMUNICATION_SPEED", "T_DP"]
+def run(
+    distance_from_central,
+    distance_A,
+    num_parties,
+    max_iter,
+    params,
+    num_memories=1,
+    mode="distribute",
+    source_position="central",
+):
+    allowed_params = [
+        "P_LINK",
+        "T_P",
+        "P_D",
+        "F_INIT",
+        "COMMUNICATION_SPEED",
+        "T_DP",
+        "T_CUT",
+    ]
     for key in params:
         if key not in allowed_params:
             warn(f"params[{key}] is not a supported parameter and will be ignored.")
@@ -211,6 +228,7 @@ def run(distance_from_central, num_parties, max_iter, params, num_memories=1):
     P_D = params.get("P_D", 0)  # dark count probability
     F_INIT = params.get("F_INIT", 1.0)  # initial fidelity of created pairs
     CS = params.get("COMMUNICATION_SPEED", C)  # communication_speed
+    T_CUT = params.get("T_CUT", None)  # cutoff time
     try:
         T_DP = params["T_DP"]  # dephasing time
     except KeyError as e:
@@ -227,17 +245,38 @@ def run(distance_from_central, num_parties, max_iter, params, num_memories=1):
     state_generation = source_funcs["state_generation"]
     time_distribution = source_funcs["time_distribution"]
 
+    # for source_position="outer" and mode="measure"
+    state_generation_measure_outer = source_funcs["state_generation_measure_outer"]
+    time_distribution_measure_outer = source_funcs["time_distribution_measure_outer"]
+
+    # for source_position="outer" and mode="distribute"
+    state_generation_distribute_outer = source_funcs[
+        "state_generation_distribute_outer"
+    ]
+    time_distribution_distribute_outer = source_funcs[
+        "time_distribution_distribute_outer"
+    ]
+
     # setup scenario
     world = World()
 
     central_station = Station(
         world=world,
         position=np.array([0, 0]),
-        memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
+        memory_noise=None,
+        memory_cutoff_time=T_CUT,
     )
 
-    angles = np.linspace(0, 2 * np.pi, num=N, endpoint=False)
+    # asymmetric setup, other_stations[0] is placed distance_A away from central station, other_stations[1:] are placed distance_from_central away from central station
+    angles = np.linspace(0, 2 * np.pi, num=N - 1, endpoint=False)
     other_stations = [
+        Station(
+            world,
+            position=np.array([0, distance_A]),
+            memory_noise=None,
+            memory_cutoff_time=T_CUT,
+        )
+    ] + [
         Station(
             world,
             position=np.array(
@@ -246,21 +285,85 @@ def run(distance_from_central, num_parties, max_iter, params, num_memories=1):
                     distance_from_central * np.sin(phi),
                 ]
             ),
-            memory_noise=construct_dephasing_noise_channel(dephasing_time=T_DP),
+            memory_noise=None,
+            memory_cutoff_time=T_CUT,
         )
         for phi in angles
     ]
 
-    sources = [
-        SchedulingSource(
-            world=world,
-            position=central_station.position,
-            target_stations=[central_station, station],
-            time_distribution=time_distribution,
-            state_generation=state_generation,
+    if mode == "distribute":
+        for station in other_stations + [central_station]:
+            station.memory_noise = construct_dephasing_noise_channel(
+                dephasing_time=T_DP
+            )
+
+        if source_position == "central":
+            sources = [
+                SchedulingSource(
+                    world=world,
+                    position=central_station.position,
+                    target_stations=[central_station, station],
+                    time_distribution=time_distribution,
+                    state_generation=state_generation,
+                )
+                for station in other_stations
+            ]
+
+        elif source_position == "outer":
+            sources = [
+                SchedulingSource(
+                    world=world,
+                    position=station.position,
+                    target_stations=[station, central_station],
+                    time_distribution=time_distribution_distribute_outer,
+                    state_generation=state_generation_distribute_outer,
+                )
+                for station in other_stations
+            ]
+
+        else:
+            raise ValueError(
+                f"Unsupported source_position: {source_position}. Supported values are 'central' and 'outer'."
+            )
+
+    elif mode == "measure":
+        central_station.memory_noise = construct_dephasing_noise_channel(
+            dephasing_time=T_DP
         )
-        for station in other_stations
-    ]
+
+        if source_position == "central":
+            sources = [
+                SchedulingSource(
+                    world=world,
+                    position=central_station.position,
+                    target_stations=[central_station, station],
+                    time_distribution=time_distribution,
+                    state_generation=state_generation,
+                )
+                for station in other_stations
+            ]
+
+        elif source_position == "outer":
+            sources = [
+                SchedulingSource(
+                    world=world,
+                    position=station.position,
+                    target_stations=[station, central_station],
+                    time_distribution=time_distribution_measure_outer,
+                    state_generation=state_generation_measure_outer,
+                )
+                for station in other_stations
+            ]
+
+        else:
+            raise ValueError(
+                f"Unsupported source_position: {source_position}. Supported values are 'central' and 'outer'."
+            )
+
+    else:
+        raise ValueError(
+            f"Unsupported mode: {mode}. Supported modes are 'distribute' and 'measure'."
+        )
 
     protocol = CentralMultipartyProtocol(
         world=world,
@@ -301,22 +404,43 @@ def ghz_fidelity(data: pd.DataFrame, num_parties: int):
     return fidelity, fidelity_std_err
 
 
+# only correct for one single memory per party
+def calculate_keyrate_time(lambda_plus, lambda_minus, time_interval):
+    e_z = 1 - np.mean(lambda_plus) - np.mean(lambda_minus)
+    e_x = 0.5 * (1 - np.mean(lambda_plus) + np.mean(lambda_minus))
+    num_pairs = len(lambda_plus)
+    pair_per_time = num_pairs / time_interval
+    keyrate = pair_per_time * (1 - binary_entropy(e_x) - binary_entropy(e_z))
+    return keyrate
+
+
+def kilo(list1):
+    list2 = []
+    for x in list1:
+        list2.append(x / 1000)
+
+    return list2
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    max_iter = 1e3
+    max_iter = 1
     num_parties = 4
-    lengths = np.linspace(1e3, 30e3, num=20)
+    lengths = np.linspace(1e3, 30e3, num=1)
     fidelities = []
     fidelity_std_err = []
     for length in lengths:
         print(f"{length/1000:.2f}")
         res = run(
             distance_from_central=length,
+            distance_A=length,
             num_parties=num_parties,
             max_iter=max_iter,
-            params={"P_LINK": 0.01, "T_DP": 100e-3, "F_INIT": 0.99},
+            params={"P_LINK": 0.01, "T_DP": 100e-3, "F_INIT": 0.99, "T_CUT": None},
             num_memories=1,
+            mode="distribute",
+            source_position="outer",
         )
         evaluation = ghz_fidelity(data=res.data, num_parties=num_parties)
         fidelities.append(evaluation[0])
@@ -327,14 +451,19 @@ if __name__ == "__main__":
         print(f"{length/1000:.2f}")
         res = run(
             distance_from_central=length,
+            distance_A=length,
             num_parties=num_parties,
             max_iter=max_iter,
             params={"P_LINK": 0.01, "T_DP": 100e-3, "F_INIT": 0.99},
-            num_memories=100,
+            num_memories=5,
+            mode="distribute",
+            source_position="outer",
         )
         evaluation = ghz_fidelity(data=res.data, num_parties=num_parties)
         fidelities_2.append(evaluation[0])
         fidelity_std_err_2.append(evaluation[1])
+    print(f"One memory: {fidelities}")
+    print(f"Multiple memories: {fidelities_2}")
     plt.errorbar(lengths / 1000, fidelities, yerr=fidelity_std_err, fmt="o", ms=3)
     plt.errorbar(lengths / 1000, fidelities_2, yerr=fidelity_std_err_2, fmt="o", ms=3)
     plt.xlabel("distance to central station [km]")
