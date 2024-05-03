@@ -72,6 +72,11 @@ if __name__ == "__main__":
     except KeyError:
         python_run_string = "pipenv run python"
 
+    try:
+        partition_name = run_config["partition_name"]
+    except KeyError:
+        partition_name = "main"
+
     python_run_command = python_run_string.split(" ")
 
     if args["--local"]:
@@ -152,6 +157,7 @@ if __name__ == "__main__":
 
     sbatch_text = f"""#!/bin/bash
 
+#SBATCH --partition={partition_name}
 #SBATCH --job-name={job_name}     # Job name, will show up in squeue output
 #SBATCH --ntasks=1                     # Number of cores
 #SBATCH --nodes=1                      # Ensure that all cores are on one machine
@@ -186,6 +192,7 @@ scontrol show job $SLURM_JOBID
         jid1 = re.search("([0-9]+)", out1).group(1)
         collect_text = f"""#!/bin/bash
 
+#SBATCH --partition={partition_name}
 #SBATCH --job-name=c_{job_name}     # Job name, will show up in squeue output
 #SBATCH --ntasks=1                     # Number of cores
 #SBATCH --nodes=1                      # Ensure that all cores are on one machine
