@@ -265,6 +265,7 @@ def run(
         position=np.array([0, 0]),
         memory_noise=None,
         memory_cutoff_time=T_CUT,
+        dark_count_probability=P_D,
     )
 
     # asymmetric setup, other_stations[0] is placed distance_A away from central station, other_stations[1:] are placed distance_from_central away from central station
@@ -275,6 +276,7 @@ def run(
             position=np.array([0, distance_A]),
             memory_noise=None,
             memory_cutoff_time=T_CUT,
+            dark_count_probability=P_D,
         )
     ] + [
         Station(
@@ -287,6 +289,7 @@ def run(
             ),
             memory_noise=None,
             memory_cutoff_time=T_CUT,
+            dark_count_probability=P_D,
         )
         for phi in angles
     ]
