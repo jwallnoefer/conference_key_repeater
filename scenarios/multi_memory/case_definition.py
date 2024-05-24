@@ -1522,6 +1522,132 @@ case_specification_4 = {
 cases.append(case_specification_4)
 
 
+case_name = "sym50_per_cut_1mem_2"
+num_parts = 64
+max_iter = 10**5
+num_parties = 4
+length = 50e3
+num_memories = 1
+
+
+
+T_CUTS = np.linspace(0.001, 0.5, num=num_parts)
+
+case_specification_1 = {
+    "name": case_name,
+    "subcase_name": "distribute_central",
+    "num_parts": num_parts,
+    "index": T_CUTS,
+    "case_args": {
+        part: {
+            "distance_from_central": length,
+            "distance_A": length,
+            "num_parties": num_parties,
+            "max_iter": max_iter,
+            "params": {
+                "P_LINK": 1,
+                "F_INIT": 0.99,
+                "T_P": 1e-6,
+                "P_D": 1e-6,
+                "T_DP": 1,
+                "T_CUT": T_CUTS[part],
+            },
+            "num_memories": num_memories,
+            "mode": "distribute",
+            "source_position": "central",
+        }
+        for part in range(num_parts)
+    },
+}
+cases.append(case_specification_1)
+
+case_specification_2 = {
+    "name": case_name,
+    "subcase_name": "distribute_outer",
+    "num_parts": num_parts,
+    "index": T_CUTS,
+    "case_args": {
+        part: {
+            "distance_from_central": length,
+            "distance_A": length,
+            "num_parties": num_parties,
+            "max_iter": max_iter,
+            "params": {
+                "P_LINK": 1,
+                "F_INIT": 0.99,
+                "T_P": 1e-6,
+                "P_D": 1e-6,
+                "T_DP": 1,
+                "T_CUT": T_CUTS[part],
+            },
+            "num_memories": num_memories,
+            "mode": "distribute",
+            "source_position": "outer",
+        }
+        for part in range(num_parts)
+    },
+}
+cases.append(case_specification_2)
+
+
+case_specification_3 = {
+    "name": case_name,
+    "subcase_name": "measure_central",
+    "num_parts": num_parts,
+    "index": T_CUTS,
+    "case_args": {
+        part: {
+            "distance_from_central": length,
+            "distance_A": length,
+            "num_parties": num_parties,
+            "max_iter": max_iter,
+            "params": {
+                "P_LINK": 1,
+                "F_INIT": 0.99,
+                "T_P": 1e-6,
+                "P_D": 1e-6,
+                "T_DP": 1,
+                "T_CUT": T_CUTS[part],
+            },
+            "num_memories": num_memories,
+            "mode": "measure",
+            "source_position": "central",
+        }
+        for part in range(num_parts)
+    },
+}
+cases.append(case_specification_3)
+
+
+case_specification_4 = {
+    "name": case_name,
+    "subcase_name": "measure_outer",
+    "num_parts": num_parts,
+    "index": T_CUTS,
+    "case_args": {
+        part: {
+            "distance_from_central": length,
+            "distance_A": length,
+            "num_parties": num_parties,
+            "max_iter": max_iter,
+            "params": {
+                "P_LINK": 1,
+                "F_INIT": 0.99,
+                "T_P": 1e-6,
+                "P_D": 1e-6,
+                "T_DP": 1,
+                "T_CUT": T_CUTS[part],
+            },
+            "num_memories": num_memories,
+            "mode": "measure",
+            "source_position": "outer",
+        }
+        for part in range(num_parts)
+    },
+}
+cases.append(case_specification_4)
+
+
 num_cases = len(cases)
 
 if __name__ == "__main__":
