@@ -378,6 +378,13 @@ def run(
     )
     protocol.setup()
 
+    filter_interval = int(1e4)
+    world.event_queue.add_recurring_filter(
+        condition=lambda event: event.type == "DiscardQubitEvent"
+        and not event.req_objects_exist(),
+        filter_interval=filter_interval,
+    )
+
     # main loop
     current_message = None
     while len(protocol.time_list) < max_iter:
