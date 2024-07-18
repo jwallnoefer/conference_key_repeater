@@ -119,6 +119,7 @@ class ConnectBellsToGHZEvent(Event):
         leftover_qubits = list(first_pair.qubits)
         # maybe this whole thing could be transformed into some tensor transformation
         proj_func = _generate_merge_proj_func(num_qubits=2)
+        # combine states one by one to avoid building a very large density matrix
         for current_input in self.pairs[1:]:
             current_length = len(leftover_qubits)
             for idx, qubit in enumerate(current_input.qubits):
@@ -153,7 +154,7 @@ class ConnectBellsToGHZEvent(Event):
             qubit.destroy()
         for pair in self.pairs:
             pair.destroy()
-        return {"output_state": output, "merging_station": self.station}
+        return {"output_state": output, "connecting_station": self.station}
 
 
 class MergeBellToGHZEvent(Event):
