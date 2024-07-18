@@ -19,6 +19,26 @@ def _generate_GHZ_proj_function(num_qubits):
     return proj_func
 
 
+def _generate_merge_proj_func(num_qubits):
+    z0s = [mat.z0] * num_qubits
+    z0s = mat.tensor(*z0s)
+    z0s_minus_1 = [mat.z0] * (num_qubits - 1)
+    z0s_minus_1 = mat.tensor(*z0s_minus_1)
+    z1s = [mat.z1] * num_qubits
+    z1s = mat.tensor(*z1s)
+    proj = z0s @ mat.H(z0s) + mat.tensor(mat.z1, z0s_minus_1) @ mat.H(z1s)
+
+    def proj_func(rho):
+        return proj @ rho @ mat.H(proj)
+
+    return proj_func
+
+
+def _project_on_x0(rho):
+    proj = mat.x0 @ mat.H(mat.x0)
+    return proj @ rho @ mat.H(proj)
+
+
 class ConnectBellsToGHZEvent(Event):
     """Connect multiple Bell pairs meeting at a station to a GHZ state.
 
@@ -87,38 +107,54 @@ class ConnectBellsToGHZEvent(Event):
             assert [(qubit in self.station.qubits) for qubit in pair.qubits].count(
                 True
             ) == 1
-        # find qubits at station
-        combining_indices = []
-        combining_qubits = []
-        leftover_qubits = []
-        for idx, qubit in enumerate(all_qubits):
+
+        first_pair = self.pairs[0]
+        for idx, qubit in enumerate(first_pair.qubits):
             if qubit in self.station.qubits:
-                combining_indices += [idx]
-                combining_qubits += [qubit]
-            else:
-                leftover_qubits += [qubit]
-        # do state transformation
-        num_pairs = len(self.pairs)
-        proj_func = _generate_GHZ_proj_function(num_pairs)
-        for pair in self.pairs:
-            pair.update_time()
-        total_state = mat.tensor(*[pair.state for pair in self.pairs])
-        new_state = apply_m_qubit_map(
-            map_func=proj_func, qubit_indices=combining_indices, rho=total_state
+                first_qubit = qubit
+                first_index = idx
+                break
+        state = first_pair.state
+        combining_qubits = []
+        leftover_qubits = list(first_pair.qubits)
+        # maybe this whole thing could be transformed into some tensor transformation
+        proj_func = _generate_merge_proj_func(num_qubits=2)
+        # combine states one by one to avoid building a very large density matrix
+        for current_input in self.pairs[1:]:
+            current_length = len(leftover_qubits)
+            for idx, qubit in enumerate(current_input.qubits):
+                if qubit in self.station.qubits:
+                    additional_index = idx
+                    combining_qubits += [qubit]
+                else:
+                    leftover_qubits += [qubit]
+            second_index = current_length + additional_index
+            state = mat.tensor(state, current_input.state)
+            state = apply_m_qubit_map(
+                map_func=proj_func,
+                qubit_indices=[first_index, second_index],
+                rho=state,
+            )
+            state = mat.ptrace(rho=state, sys=[second_index])
+        # then also measure the remaining qubit for the first pair
+        state = apply_m_qubit_map(
+            map_func=_project_on_x0, qubit_indices=[first_index], rho=state
         )
-        new_state = mat.ptrace(rho=new_state, sys=combining_indices)
-        new_state = new_state / np.trace(new_state)
+        state = mat.ptrace(rho=state, sys=[first_index])
+        leftover_qubits.remove(first_qubit)
+        combining_qubits.append(first_qubit)
+        state = state / np.trace(state)
         output = MultiQubit(
             world=self.pairs[0].world,
             qubits=leftover_qubits,
-            initial_state=new_state,
+            initial_state=state,
         )
         # cleanup
         for qubit in combining_qubits:
             qubit.destroy()
         for pair in self.pairs:
             pair.destroy()
-        return {"output_state": output, "combining_station": self.station}
+        return {"output_state": output, "connecting_station": self.station}
 
 
 class MergeBellToGHZEvent(Event):
