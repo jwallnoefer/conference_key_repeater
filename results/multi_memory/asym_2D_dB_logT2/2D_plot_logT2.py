@@ -8,7 +8,7 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 file_path = "distribute_central/result.csv"
 data = pd.read_csv(file_path)
 
-gesucht = "key_per_time"
+gesucht = "fidelity"
 
 fidelity_values = data[gesucht].values
 
@@ -27,10 +27,10 @@ plt.colorbar(label=gesucht)
 plt.ylabel("T_2")
 plt.yscale("log")
 plt.xlabel("d_A")
-# plt.title('fidelities')
+plt.title("fidelities")
 plt.xlim(d_As.min(), d_As.max())
 plt.ylim(T_2s.min(), T_2s.max())
-xticks = np.append(d_As[::4], d_As[-1])
+xticks = np.append(d_As[::6], d_As[-1])
 yticks = np.append(T_2s[::4], T_2s[-1])
 plt.xticks(xticks)
 plt.yticks(yticks)
