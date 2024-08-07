@@ -215,7 +215,9 @@ def run(
         raise TypeError("distance_from_central must be a list")
 
     if len(distance_from_central) != num_parties - 1:
-        raise ValueError(f"The length of distances_from_central must be {num_parties - 1}")
+        raise ValueError(
+            f"The length of distances_from_central must be {num_parties - 1}"
+        )
 
     allowed_params = [
         "P_LINK",
@@ -292,10 +294,12 @@ def run(
         phi = angles[i]
         station = Station(
             world,
-            position=np.array([
-                distance * np.cos(phi),
-                distance * np.sin(phi),
-            ]),
+            position=np.array(
+                [
+                    distance * np.cos(phi),
+                    distance * np.sin(phi),
+                ]
+            ),
             memory_noise=None,
             memory_cutoff_time=T_CUT,
             dark_count_probability=P_D,
@@ -388,14 +392,13 @@ def run(
     )
     protocol.setup()
 
-
-
     # wait until debugged
     filter_interval = int(1e4)
     world.event_queue.add_recurring_filter(
-    condition=lambda event: event.type == "DiscardQubitEvent"
-    and not event.req_objects_exist(),
-    filter_interval=filter_interval,)
+        condition=lambda event: event.type == "DiscardQubitEvent"
+        and not event.req_objects_exist(),
+        filter_interval=filter_interval,
+    )
     # main loop
     current_message = None
     while len(protocol.time_list) < max_iter:
