@@ -210,6 +210,13 @@ def run(
     mode="distribute",
     source_position="central",
 ):
+
+    if not isinstance(distance_from_central, list):
+        raise TypeError("distance_from_central must be a list")
+
+    if len(distance_from_central) != num_parties - 1:
+        raise ValueError(f"The length of distances_from_central must be {num_parties - 1}")
+
     allowed_params = [
         "P_LINK",
         "T_P",
@@ -268,9 +275,10 @@ def run(
         dark_count_probability=P_D,
     )
 
-    # asymmetric setup, other_stations[0] is placed distance_A away from central station, other_stations[1:] are placed distance_from_central away from central station
+    # asymmetric setup, other_stations[0] is placed distance_A away from central station, other_stations[1:] are placed distance_from_central[i] away from central station
     angles = np.linspace(0, 2 * np.pi, num=N - 1, endpoint=False)
-    other_stations = [
+
+    station_A = [
         Station(
             world,
             position=np.array([0, distance_A]),
@@ -278,21 +286,23 @@ def run(
             memory_cutoff_time=T_CUT,
             dark_count_probability=P_D,
         )
-    ] + [
-        Station(
+    ]
+    stations_B = []
+    for i, distance in enumerate(distance_from_central):
+        phi = angles[i]
+        station = Station(
             world,
-            position=np.array(
-                [
-                    distance_from_central * np.cos(phi),
-                    distance_from_central * np.sin(phi),
-                ]
-            ),
+            position=np.array([
+                distance * np.cos(phi),
+                distance * np.sin(phi),
+            ]),
             memory_noise=None,
             memory_cutoff_time=T_CUT,
             dark_count_probability=P_D,
         )
-        for phi in angles
-    ]
+        stations_B.append(station)
+
+    other_stations = station_A + stations_B
 
     if mode == "distribute":
         for station in other_stations + [central_station]:
@@ -378,13 +388,14 @@ def run(
     )
     protocol.setup()
 
+
+
+    # wait until debugged
     filter_interval = int(1e4)
     world.event_queue.add_recurring_filter(
-        condition=lambda event: event.type == "DiscardQubitEvent"
-        and not event.req_objects_exist(),
-        filter_interval=filter_interval,
-    )
-
+    condition=lambda event: event.type == "DiscardQubitEvent"
+    and not event.req_objects_exist(),
+    filter_interval=filter_interval,)
     # main loop
     current_message = None
     while len(protocol.time_list) < max_iter:
@@ -396,7 +407,6 @@ def run(
         current_message = world.event_queue.resolve_next_event()
 
     return protocol
-
 
 def ghz_fidelity(data: pd.DataFrame, num_parties: int):
     z0s = [mat.z0] * num_parties
