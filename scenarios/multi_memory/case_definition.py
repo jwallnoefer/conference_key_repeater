@@ -1251,7 +1251,6 @@ case_specification_4 = {
 cases.append(case_specification_4)
 
 
-
 case_name = "asym_cut0.05_1mem"
 num_parts = 64
 max_iter = 10**5
@@ -1389,7 +1388,6 @@ case_specification_4 = {
 cases.append(case_specification_4)
 
 
-
 case_name = "sym50_per_cut_1mem"
 num_parts = 64
 max_iter = 10**5
@@ -1405,7 +1403,6 @@ base_params = {
     "T_CUT": T_CUT,
 }
 num_memories = 1
-
 
 
 T_CUTS = np.linspace(0.005, 0.5, num=num_parts)
