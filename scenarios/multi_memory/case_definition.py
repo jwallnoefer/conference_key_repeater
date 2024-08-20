@@ -4340,6 +4340,51 @@ case_specification_1 = {
 }
 cases.append(case_specification_1)
 
+case_name = "P_sym150_per_TCUT_1mem_v5"
+num_parts = 64
+max_iter = 10**4
+num_parties = 4
+length = 150e3
+base_params = {
+    "P_LINK": 1,
+    "F_INIT": 0.99,
+    "T_P": 1e-6,  # preparation time, consistent with MHz entangled pair source
+    "P_D": 1e-6,  # dark count probability
+    "T_DP": 1,  # dephasing time
+}
+num_memories = 1
+
+
+T_CUTS = np.linspace(0.05, 5, num=num_parts)
+
+case_specification_1 = {
+    "name": case_name,
+    "subcase_name": "distribute_central",
+    "num_parts": num_parts,
+    "index": T_CUTS,
+    "case_args": {
+        part: {
+            "distance_from_central": [length] * int(num_parties - 1),
+            "distance_A": length,
+            "num_parties": num_parties,
+            "max_iter": max_iter,
+            "params": {
+                "P_LINK": 1,
+                "F_INIT": 0.99,
+                "T_P": 1e-6,
+                "P_D": 1e-6,
+                "T_DP": 1,
+                "T_CUT": T_CUTS[part],
+            },
+            "num_memories": num_memories,
+            "mode": "distribute",
+            "source_position": "central",
+        }
+        for part in range(num_parts)
+    },
+}
+cases.append(case_specification_1)
+
 
 num_cases = len(cases)
 

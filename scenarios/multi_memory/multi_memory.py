@@ -411,7 +411,6 @@ def run(
 
     return protocol
 
-
 def ghz_fidelity(data: pd.DataFrame, num_parties: int):
     z0s = [mat.z0] * num_parties
     z0s = mat.tensor(*z0s)
