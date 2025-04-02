@@ -107,7 +107,8 @@ class ConnectBellsToGHZEvent(Event):
             assert [(qubit in self.station.qubits) for qubit in pair.qubits].count(
                 True
             ) == 1
-
+        for pair in self.pairs:
+            pair.update_time()
         first_pair = self.pairs[0]
         for idx, qubit in enumerate(first_pair.qubits):
             if qubit in self.station.qubits:
