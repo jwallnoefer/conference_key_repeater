@@ -133,6 +133,9 @@ def standard_ghz_evaluation(data_frame, num_parties=None):
     lambda_p = lambda_plus(data=data_frame, num_parties=num_parties)
     lambda_m = lambda_minus(data=data_frame, num_parties=num_parties)
 
+    e_x = 0.5 * (1 - lambda_p + lambda_m)
+    e_z = 1 - lambda_p - lambda_m
+
     key_per_time, key_per_time_std_err = calculate_keyrate_time(
         lambda_p, lambda_m, time_interval, return_std_err=True
     )
@@ -142,4 +145,6 @@ def standard_ghz_evaluation(data_frame, num_parties=None):
         fidelity_std_err,
         key_per_time,
         key_per_time_std_err,
+        e_x,
+        e_z,
     ]

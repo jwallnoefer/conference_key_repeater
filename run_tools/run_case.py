@@ -88,6 +88,8 @@ if __name__ == "__main__":
                     "fidelity_err",
                     "key_per_time",
                     "key_per_time_err",
+                    "e_x",
+                    "e_z",
                 ],
             )
             evaluated_res.to_csv(

@@ -9,6 +9,7 @@ numpy = "*"
 pandas = "*"
 tools = {editable = true, path = "./tools"}
 docopt = "*"
+pre-commit = "*"
 
 [dev-packages]
 pre-commit = "*"
