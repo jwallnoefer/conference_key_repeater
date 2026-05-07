@@ -1,27 +1,51 @@
-# Distributing GHZ states for Conference Key Agreement
+# Strategy optimisation for quantum conference key agreement in asymmetric star networks
+
+This repository is an archive for the code used in:
+
+> Strategy optimisation for quantum conference key agreement in asymmetric star networks <br>
+> J. Memmen, J. Kunzelmann, J. Wallnöfer, N. Walk, J. Eisert <br>
+> Preprint: soon on arXiv
 
 ## Goal
-Use [ReQuSim](https://github.com/jwallnoefer/requsim) to simulate the distribution of GHZ
-states for a quantum conference agreement protocol.
+Use [ReQuSim](https://github.com/jwallnoefer/requsim), a simulator for quantum repeater protocols,
+to simulate the distribution of GHZ states for a quantum conference agreement protocol.
 
-## Dev Environment
+## Repository structure
 
-We use `pipenv` to ensure a stable dev environment across
-devices and contributors. (it is horribly slow, but it gets the job done.)
+The main parts of the repository are structured as follows:
 
-First, install `pipenv`:
+* The `tools` package that includes:
+  - A custom `ReQuSim`-event for connecting N Bell pairs to an N-qubit GHZ state
+  - Various helper functions to set up the simulation and evaluate their output
+* The `scenarios/multi_memory` directory with
+  - The general simulation scenario with all options in `multi_memory.py`
+  - A definition of all parameters for all the cases we used in `case_definition.py`
+
+As minor parts it also includes tests for the new `ReQuSim` event and the `run_tools`
+for quickly performing simulations that are specified in the case_definition format we used
+as well as launching these jobs on a HPC system with SLURM (some tweaks would probably be
+necessary to reuse).
+
+### How to use
+
+To run the simulations you need to have the `requsim` package installed. For performance, we
+used some in-development features, so you will need to install a version of at least 0.5dev67
+or higher, for example to install this particular version use:
+```bash
+pip install git+https://github.com/jwallnoefer/requsim@e55a089b8ed68f0a6153516d0e633fcaa46113b6#egg=requsim
 ```
-pip install pipenv
-```
+In order to use the run tools `docopt` is needed. If you wish to use the plotting files,
+`matplotlib` is also required.
 
-Then, set up the new virtual environment:
-```
+For best results we recommend recreating the same virtual environment we used to develop
+the code via pipenv. This assumes you have a Python>=3.9 and `pipenv` installed on your system:
+
+```bash
 pipenv sync --dev
-pipenv run pre-commit install
 ```
 
 You can activate the environment with
-```
+```bash
 pipenv shell
 ```
 (or, alternatively, run commands in the environment with `pipenv run COMMAND`).

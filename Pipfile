@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-requsim = {editable = true, ref = "dev", git = "https://github.com/jwallnoefer/requsim"}
+requsim = {editable = false, ref = "e55a089b8ed68f0a6153516d0e633fcaa46113b6", git = "https://github.com/jwallnoefer/requsim"}
 numpy = "*"
 pandas = "*"
 tools = {editable = true, path = "./tools"}
