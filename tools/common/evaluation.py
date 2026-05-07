@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import requsim.libs.matrix as mat
 
+
 def binary_entropy(p):
     """Calculate the binary entropy.
 
@@ -29,6 +30,7 @@ def binary_entropy(p):
             warn(f"binary_entropy was called with p={p} and returned nan")
         return res
 
+
 def calculate_qber_x(data: pd.DataFrame, num_parties: int):
     # span measurement operator
     Xs = [mat.X] * num_parties
@@ -37,7 +39,7 @@ def calculate_qber_x(data: pd.DataFrame, num_parties: int):
     states = data["state"]
     qx_array = []
     for state in states:
-        qx = 0.5 * (1 - np.trace(X_all@state))
+        qx = 0.5 * (1 - np.trace(X_all @ state))
         qx_array.append(np.real_if_close(qx))
 
     return qx_array
@@ -61,17 +63,14 @@ def calculate_qber_z(data: pd.DataFrame, num_parties: int):
     qz_array = []
 
     for state in states:
-        qz_values = [
-            0.5 * (1 - np.trace(op @ state))
-            for op in operators
-        ]
+        qz_values = [0.5 * (1 - np.trace(op @ state)) for op in operators]
         qz_values = np.real_if_close(qz_values)
         qz_array.append(np.max(qz_values))
 
     return qz_array
 
-def calculate_keyrate_time(ez_array, ex_array, time_interval, return_std_err=False
-):
+
+def calculate_keyrate_time(ez_array, ex_array, time_interval, return_std_err=False):
     e_z = np.mean(ez_array)
     e_x = np.mean(ex_array)
     num_ghz = len(ez_array)
@@ -94,9 +93,6 @@ def calculate_keyrate_time(ez_array, ex_array, time_interval, return_std_err=Fal
         )
     keyrate_std_err = keyrate_std / np.sqrt(num_ghz)
     return keyrate, keyrate_std_err
-
-
-
 
 
 # def calculate_keyrate_time(
@@ -177,7 +173,10 @@ def standard_ghz_evaluation(data_frame, num_parties=None):
     e_x = np.mean(ex_array)
 
     key_per_time, key_per_time_std_err = calculate_keyrate_time(
-        ez_array=ez_array, ex_array=ex_array, time_interval=time_interval, return_std_err=True
+        ez_array=ez_array,
+        ex_array=ex_array,
+        time_interval=time_interval,
+        return_std_err=True,
     )
     return [
         raw_rate,

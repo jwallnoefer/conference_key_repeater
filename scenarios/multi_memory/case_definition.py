@@ -861,7 +861,7 @@ num_parts = num_parts_x * num_parts_y
 max_iter = 10**5
 num_parties = 4
 
-T_CUTS = np.linspace(0.05, 0.5, num=num_parts_x) # x-axis
+T_CUTS = np.linspace(0.05, 0.5, num=num_parts_x)  # x-axis
 ds = np.linspace(1e3, 220e3, num=num_parts_y)  # y-axis
 
 param_matrix = np.array(np.meshgrid(T_CUTS, ds)).T.reshape(-1, 2)
@@ -1199,7 +1199,7 @@ num_parts = num_parts_x * num_parts_y
 max_iter = 10**5
 num_parties = 4
 
-T_CUTS = np.linspace(0.05, 0.5, num=num_parts_x) # x-axis
+T_CUTS = np.linspace(0.05, 0.5, num=num_parts_x)  # x-axis
 ds = np.linspace(1e3, 220e3, num=num_parts_y)  # y-axis
 
 param_matrix = np.array(np.meshgrid(T_CUTS, ds)).T.reshape(-1, 2)
