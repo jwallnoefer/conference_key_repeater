@@ -447,17 +447,18 @@ def kilo(list1):
 
 
 if __name__ == "__main__":
+    # example for using this scenario
     import matplotlib.pyplot as plt
 
-    max_iter = 1
+    max_iter = 100  # increase this for better statistics
     num_parties = 4
-    lengths = np.linspace(1e3, 30e3, num=1)
+    lengths = np.linspace(1e3, 30e3, num=20)
     fidelities = []
     fidelity_std_err = []
     for length in lengths:
         print(f"{length/1000:.2f}")
         res = run(
-            distance_from_central=length,
+            distance_from_central=[length] * (num_parties - 1),
             distance_A=length,
             num_parties=num_parties,
             max_iter=max_iter,
@@ -474,7 +475,7 @@ if __name__ == "__main__":
     for length in lengths:
         print(f"{length/1000:.2f}")
         res = run(
-            distance_from_central=length,
+            distance_from_central=[length] * (num_parties - 1),
             distance_A=length,
             num_parties=num_parties,
             max_iter=max_iter,
@@ -486,11 +487,26 @@ if __name__ == "__main__":
         evaluation = ghz_fidelity(data=res.data, num_parties=num_parties)
         fidelities_2.append(evaluation[0])
         fidelity_std_err_2.append(evaluation[1])
-    print(f"One memory: {fidelities}")
-    print(f"Multiple memories: {fidelities_2}")
-    plt.errorbar(lengths / 1000, fidelities, yerr=fidelity_std_err, fmt="o", ms=3)
-    plt.errorbar(lengths / 1000, fidelities_2, yerr=fidelity_std_err_2, fmt="o", ms=3)
+    # print(f"One memory: {fidelities}")
+    # print(f"Multiple memories: {fidelities_2}")
+    plt.errorbar(
+        lengths / 1000,
+        fidelities,
+        yerr=fidelity_std_err,
+        fmt="o",
+        ms=3,
+        label="1 memory",
+    )
+    plt.errorbar(
+        lengths / 1000,
+        fidelities_2,
+        yerr=fidelity_std_err_2,
+        fmt="o",
+        ms=3,
+        label="5 memories",
+    )
     plt.xlabel("distance to central station [km]")
     plt.ylabel("average fidelity F")
+    plt.legend()
     plt.grid()
     plt.show()
