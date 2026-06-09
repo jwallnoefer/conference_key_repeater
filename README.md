@@ -1,10 +1,12 @@
 # Strategy optimisation for quantum conference key agreement in asymmetric star networks
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20085326.svg)](https://doi.org/10.5281/zenodo.20085326)
+
 This repository is an archive for the code used in:
 
 > Strategy optimisation for quantum conference key agreement in asymmetric star networks <br>
 > J. Memmen, J. Kunzelmann, J. Wallnöfer, N. Walk, J. Eisert <br>
-> Preprint: soon on arXiv
+> Preprint: [arXiv:2605.18677 [quant-ph]](https://doi.org/10.48550/arXiv.2605.18677)
 
 ## Goal
 Use [ReQuSim](https://github.com/jwallnoefer/requsim), a simulator for quantum repeater protocols,
